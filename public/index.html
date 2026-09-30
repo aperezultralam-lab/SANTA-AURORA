@@ -58,6 +58,8 @@
         <button class="quality" data-quality="battery">BATERÍA</button>
       </div>
       <button id="startGame" class="start-btn"><span>INICIAR CAPÍTULO</span><b>→</b></button>
+      <button id="continueGame" class="secondary-btn hidden"><span>CONTINUAR PARTIDA</span><b>↗</b></button>
+      <button id="openSettings" class="secondary-btn"><span>CONFIGURACIÓN</span><b>⚙</b></button>
     </div>
 
     <div class="menu-footer">
@@ -200,6 +202,89 @@
   <button id="btnInteract" class="touch-btn interact"><span>USAR</span></button>
   <button id="btnCrouch" class="touch-btn crouch"><span>SIGILO</span></button>
   <button id="btnInventory" class="touch-btn inventory"><span>MOCHILA</span></button>
+  <button id="btnReload" class="touch-btn reload hidden"><span>RECARGAR</span></button>
+  <button id="btnHeal" class="touch-btn heal hidden"><span>CURAR</span></button>
+</div>
+
+<div id="pauseMenu" class="pause-menu hidden">
+  <div class="pause-card">
+    <span>PAUSA</span>
+    <h2>SANTA AURORA</h2>
+    <button id="resumeGame">CONTINUAR</button>
+    <button id="saveGameButton">GUARDAR PARTIDA</button>
+    <button id="pauseSettings">CONFIGURACIÓN</button>
+    <button id="returnMenu">VOLVER AL MENÚ</button>
+  </div>
+</div>
+
+<div id="settingsPanel" class="settings-panel hidden">
+  <div class="settings-card">
+    <header>
+      <div><span>SISTEMA</span><b>CONFIGURACIÓN</b></div>
+      <button id="closeSettings">×</button>
+    </header>
+
+    <div class="settings-grid">
+      <section>
+        <h3>GRÁFICOS</h3>
+        <label>Calidad
+          <select id="settingQuality">
+            <option value="auto">Automática</option>
+            <option value="low">Baja</option>
+            <option value="medium">Media</option>
+            <option value="high">Alta</option>
+            <option value="ultra">Ultra</option>
+          </select>
+        </label>
+        <label>Objetivo de FPS
+          <select id="settingFps">
+            <option value="30">30 FPS</option>
+            <option value="45">45 FPS</option>
+            <option value="60">60 FPS</option>
+            <option value="120">120 FPS</option>
+          </select>
+        </label>
+        <label>Campo de visión <b id="fovValue">58</b>
+          <input id="settingFov" type="range" min="48" max="80" value="58">
+        </label>
+        <label>Distancia de dibujado <b id="drawValue">100</b>%
+          <input id="settingDraw" type="range" min="55" max="100" value="100">
+        </label>
+      </section>
+
+      <section>
+        <h3>CÁMARA Y CONTROL</h3>
+        <label>Sensibilidad <b id="sensValue">100</b>%
+          <input id="settingSensitivity" type="range" min="45" max="180" value="100">
+        </label>
+        <label class="toggle-line">Invertir eje Y <input id="settingInvertY" type="checkbox"></label>
+        <label class="toggle-line">Asistencia de apuntado <input id="settingAimAssist" type="checkbox" checked></label>
+        <label class="toggle-line">Autoajuste de cámara <input id="settingAutoCamera" type="checkbox" checked></label>
+        <label class="toggle-line">Vibración háptica <input id="settingHaptics" type="checkbox" checked></label>
+        <label>Tamaño controles táctiles <b id="touchValue">100</b>%
+          <input id="settingTouchScale" type="range" min="75" max="135" value="100">
+        </label>
+      </section>
+
+      <section class="bindings-section">
+        <h3>CONTROLES PC</h3>
+        <div class="binding-grid">
+          <button class="binding" data-action="forward"><span>Avanzar</span><b>W</b></button>
+          <button class="binding" data-action="back"><span>Retroceder</span><b>S</b></button>
+          <button class="binding" data-action="left"><span>Izquierda</span><b>A</b></button>
+          <button class="binding" data-action="right"><span>Derecha</span><b>D</b></button>
+          <button class="binding" data-action="sprint"><span>Sprint</span><b>SHIFT</b></button>
+          <button class="binding" data-action="crouch"><span>Agacharse</span><b>C</b></button>
+          <button class="binding" data-action="dodge"><span>Esquivar</span><b>SPACE</b></button>
+          <button class="binding" data-action="interact"><span>Interactuar</span><b>E</b></button>
+          <button class="binding" data-action="inventory"><span>Inventario</span><b>TAB</b></button>
+          <button class="binding" data-action="heal"><span>Curarse</span><b>H</b></button>
+          <button class="binding" data-action="reload"><span>Recargar</span><b>R</b></button>
+        </div>
+        <small id="bindingHint">Toca un control para reasignarlo.</small>
+      </section>
+    </div>
+  </div>
 </div>
 
 <script type="importmap">
