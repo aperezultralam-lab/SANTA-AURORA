@@ -118,6 +118,57 @@ const input = {
   attack: false
 };
 
+const DEFAULT_SETTINGS = {
+  quality: "auto",
+  fpsCap: isMobile ? 45 : 60,
+  fov: 58,
+  sensitivity: 1,
+  invertY: false,
+  aimAssist: true,
+  autoCamera: true,
+  haptics: true,
+  touchScale: 1,
+  drawDistance: 1,
+  bindings: {
+    forward: "KeyW",
+    back: "KeyS",
+    left: "KeyA",
+    right: "KeyD",
+    sprint: "ShiftLeft",
+    crouch: "KeyC",
+    dodge: "Space",
+    interact: "KeyE",
+    inventory: "Tab",
+    heal: "KeyH",
+    reload: "KeyR"
+  }
+};
+
+function readSettings(){
+  try{
+    const raw=JSON.parse(localStorage.getItem("santaAuroraSettings")||"null");
+    return {
+      ...DEFAULT_SETTINGS,
+      ...(raw||{}),
+      bindings:{...DEFAULT_SETTINGS.bindings,...(raw?.bindings||{})}
+    };
+  }catch{
+    return structuredClone(DEFAULT_SETTINGS);
+  }
+}
+let settings=readSettings();
+quality=settings.quality;
+let pendingBinding=null;
+let lastRenderedAt=0;
+let autosaveClock=0;
+let lodClock=0;
+let lastZoneName="";
+let gamepadPrev=[];
+function haptic(pattern){ if(settings.haptics && navigator.vibrate) navigator.vibrate(pattern); }
+function writeSettings(){
+  localStorage.setItem("santaAuroraSettings",JSON.stringify(settings));
+}
+
 const MISSION_DATA = [
   {
     title: "Busca suministros en la farmacia.",
@@ -143,6 +194,15 @@ const MISSION_DATA = [
     title: "Alcanza la salida norte.",
     hint: "La compuerta del parque se abrió. Sal de Santa Aurora."
   }
+];
+
+const ZONES = [
+  {name:"CENTRO URBANO",x1:-16,x2:16,z1:8,z2:78},
+  {name:"SUBURBIOS",x1:-78,x2:-16,z1:8,z2:78},
+  {name:"HOSPITAL ABANDONADO",x1:-78,x2:-16,z1:-18,z2:8},
+  {name:"ESTACIÓN DE TREN INUNDADA",x1:5,x2:34,z1:-46,z2:-10},
+  {name:"BOSQUE DE LA PERIFERIA",x1:-78,x2:-18,z1:-78,z2:-18},
+  {name:"CENTRO COMERCIAL",x1:-18,x2:18,z1:-78,z2:-36}
 ];
 
 const noteCatalog = {
@@ -317,6 +377,7 @@ function addBuilding(x,z,w,d,h,style=0,broken=false) {
   }
 
   COLLIDERS.push({minX:x-w/2-.4,maxX:x+w/2+.4,minZ:z-d/2-.4,maxZ:z+d/2+.4,minY:0,maxY:h});
+  LOD_OBJECTS.push({obj:g,maxDistance:130});
   return g;
 }
 
@@ -336,6 +397,7 @@ function addCar(x,z,ry=0,color=0x45515b,damaged=false) {
     rust.position.set(0,.53,2.16);g.add(rust);
   }
   COLLIDERS.push({minX:x-1.6,maxX:x+1.6,minZ:z-2.6,maxZ:z+2.6,minY:0,maxY:1.5});
+  LOD_OBJECTS.push({obj:g,maxDistance:90});
   return g;
 }
 
@@ -348,6 +410,7 @@ function addTree(x,z,s=1) {
     c.position.set((Math.random()-.5)*1.8,(Math.random()-.5)*1.4,(Math.random()-.5)*1.8);c.castShadow=true;canopy.add(c);
   }
   g.add(canopy);
+  LOD_OBJECTS.push({obj:g,maxDistance:85});
   return g;
 }
 
@@ -572,6 +635,22 @@ function createPlayerModel() {
   const hair=new THREE.Mesh(new THREE.SphereGeometry(.245,18,10,0,Math.PI*2,0,Math.PI*.62),stdMat(0x2a2521,.92,0));
   hair.position.y=2.04;hair.castShadow=true;g.add(hair);
 
+  // Rostro creado con el mismo motor Three.js/WebGL; no usa un motor facial externo.
+  const eyeWhite=stdMat(0xf0eee7,.45,0);
+  const iris=stdMat(0x556c63,.35,.05);
+  for(const ex of [-.085,.085]){
+    const ew=new THREE.Mesh(new THREE.SphereGeometry(.035,10,8),eyeWhite);
+    ew.scale.set(1.15,.72,.55);ew.position.set(ex,1.96,-.222);g.add(ew);
+    const pupil=new THREE.Mesh(new THREE.SphereGeometry(.018,8,6),iris);
+    pupil.scale.set(1,.9,.45);pupil.position.set(ex,1.96,-.247);g.add(pupil);
+    const brow=new THREE.Mesh(new THREE.BoxGeometry(.085,.012,.012),stdMat(0x3a2c24,.9,0));
+    brow.position.set(ex,2.015,-.244);brow.rotation.z=ex<0?.10:-.10;g.add(brow);
+  }
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.032,.10,8),skin);
+  nose.rotation.x=-Math.PI/2;nose.position.set(0,1.91,-.255);g.add(nose);
+  const mouth=new THREE.Mesh(new THREE.BoxGeometry(.10,.012,.012),stdMat(0x7e4d49,.75,0));
+  mouth.position.set(0,1.84,-.245);g.add(mouth);
+
   const shoulderL=new THREE.Group(),shoulderR=new THREE.Group();
   shoulderL.position.set(-.36,1.55,0);shoulderR.position.set(.36,1.55,0);
   const armGeo=new THREE.CapsuleGeometry(.09,.55,5,8);
@@ -603,6 +682,13 @@ function makeHumanEnemy(x,z,patrol,color=0x5c5044) {
   const bodyMat=stdMat(color,.82,.04,textures.fabric);
   const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.31,.72,6,10),bodyMat);torso.position.y=1.2;torso.castShadow=true;g.add(torso);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.22,14,10),MAT.skin);head.position.y=1.88;head.castShadow=true;g.add(head);
+  const faceEye=stdMat(0xd9ddd5,.45,0), faceIris=stdMat(0x3a4a43,.4,0);
+  for(const ex of [-.075,.075]){
+    const ew=new THREE.Mesh(new THREE.SphereGeometry(.029,8,6),faceEye);ew.scale.set(1.1,.7,.5);ew.position.set(ex,1.91,-.205);g.add(ew);
+    const ep=new THREE.Mesh(new THREE.SphereGeometry(.014,7,5),faceIris);ep.position.set(ex,1.91,-.225);g.add(ep);
+  }
+  const enose=new THREE.Mesh(new THREE.ConeGeometry(.027,.085,7),MAT.skin);enose.rotation.x=-Math.PI/2;enose.position.set(0,1.86,-.235);g.add(enose);
+  const emouth=new THREE.Mesh(new THREE.BoxGeometry(.082,.01,.01),stdMat(0x704944,.8,0));emouth.position.set(0,1.80,-.225);g.add(emouth);
   const armL=new THREE.Mesh(new THREE.CapsuleGeometry(.08,.48,4,7),bodyMat);armL.position.set(-.38,1.25,0);armL.rotation.z=.15;g.add(armL);
   const armR=armL.clone();armR.position.x=.38;armR.rotation.z=-.15;g.add(armR);
   const gun=new THREE.Group();gun.position.set(.28,1.3,-.25);
@@ -747,6 +833,86 @@ function createLighting() {
   const cool=new THREE.DirectionalLight(0x8fbad0,.45);cool.position.set(20,12,-20);scene.add(cool);
 }
 
+function getZoneName(pos=player.pos){
+  const z=ZONES.find(v=>pos.x>=v.x1&&pos.x<=v.x2&&pos.z>=v.z1&&pos.z<=v.z2);
+  return z?.name||"PERIFERIA DE SANTA AURORA";
+}
+function updateZone(){
+  const name=getZoneName();
+  if(name!==lastZoneName){
+    lastZoneName=name;
+    if(gameRunning)toast(name,1800);
+  }
+}
+function updateLOD(){
+  const factor=settings.drawDistance;
+  for(const item of LOD_OBJECTS){
+    const d=item.obj.position.distanceTo(player.pos);
+    item.obj.visible=d<item.maxDistance*factor;
+  }
+}
+function makeSave(){
+  return {
+    version:2,
+    savedAt:Date.now(),
+    player:{
+      name:player.name,
+      pos:{x:player.pos.x,y:player.pos.y,z:player.pos.z},
+      hp:player.hp,
+      ammo:player.ammo
+    },
+    inventory:{...inventory,notes:[...inventory.notes]},
+    mission:currentMission,
+    pickups:PICKUPS.map(p=>!!p.collected),
+    documents:DOCUMENTS.map(d=>!!d.collected),
+    radioUsed:!!radioObject?.used,
+    settings
+  };
+}
+function saveProgress(showToast=false){
+  if(!gameRunning)return;
+  localStorage.setItem("santaAuroraSave",JSON.stringify(makeSave()));
+  if(showToast)toast("Partida guardada.");
+  updateContinueButton();
+}
+function readSave(){
+  try{return JSON.parse(localStorage.getItem("santaAuroraSave")||"null");}catch{return null}
+}
+function applySave(data){
+  if(!data)return false;
+  Object.assign(inventory,data.inventory||{});
+  inventory.notes=Array.isArray(data.inventory?.notes)?data.inventory.notes:[];
+  player.name=data.player?.name||"Alex";
+  player.hp=clamp(Number(data.player?.hp)||100,1,100);
+  player.ammo=clamp(Number(data.player?.ammo)||8,0,player.magSize);
+  if(data.player?.pos)player.pos.set(data.player.pos.x||0,data.player.pos.y||0,data.player.pos.z||53);
+  player.group.position.copy(player.pos);
+  currentMission=clamp(Number(data.mission)||0,0,MISSION_DATA.length-1);
+  (data.pickups||[]).forEach((v,i)=>{ if(PICKUPS[i]&&v){PICKUPS[i].collected=true;PICKUPS[i].group.visible=false;} });
+  (data.documents||[]).forEach((v,i)=>{ if(DOCUMENTS[i]&&v){DOCUMENTS[i].collected=true;DOCUMENTS[i].group.visible=false;} });
+  if(data.radioUsed&&radioObject){radioObject.used=true;radioObject.light.intensity=2.8;}
+  updateInventoryUI();updateHealthUI();setMission(currentMission);
+  return true;
+}
+function updateContinueButton(){
+  $("continueGame").classList.toggle("hidden",!readSave());
+}
+function resumeSavedGame(){
+  const data=readSave();if(!data)return;
+  audio.start();
+  applySave(data);
+  $("mainMenu").classList.add("hidden");
+  $("hud").classList.remove("hidden");
+  gameRunning=true;paused=false;cinematicRunning=false;
+  if(isMobile)$("touchUI").classList.remove("hidden");
+  else{$("desktopHelp").classList.remove("hidden");requestLock();}
+  toast("Partida restaurada.");
+}
+function updateContextButtons(){
+  if(!isMobile)return;
+  $("btnReload").classList.toggle("hidden",!(player.ammo<player.magSize&&inventory.ammoReserve>0));
+  $("btnHeal").classList.toggle("hidden",!(inventory.medkits>0&&player.hp<100));
+}
 function setMission(index) {
   currentMission=index;
   const data=MISSION_DATA[index];
@@ -781,6 +947,8 @@ function updateInventoryUI() {
   $("craftBlade").disabled=!(inventory.metal>=1&&inventory.parts>=1);
 
   const notes=$("notesList");
+  updateContextButtons();
+
   if(inventory.notes.length===0){
     notes.innerHTML="<p>Todavía no has encontrado documentos.</p>";
   }else{
@@ -821,7 +989,7 @@ function hideDocument() {
 function craftMedkit() {
   if(inventory.cloth<1||inventory.alcohol<1)return;
   inventory.cloth--;inventory.alcohol--;inventory.medkits++;
-  updateInventoryUI();audio.pulse(360,.08,.04,"sine");navigator.vibrate?.(25);
+  updateInventoryUI();audio.pulse(360,.08,.04,"sine");haptic(25);saveProgress(false);
   toast("Fabricaste un botiquín.");
   if(currentMission===1)setMission(2);
 }
@@ -835,7 +1003,7 @@ function craftBlade() {
 function useMedkit() {
   if(inventory.medkits<=0||player.hp>=100)return;
   inventory.medkits--;player.hp=Math.min(100,player.hp+55);updateInventoryUI();updateHealthUI();
-  audio.pulse(470,.1,.03,"sine");navigator.vibrate?.([20,20,20]);toast("Te curaste.");
+  audio.pulse(470,.1,.03,"sine");haptic([20,20,20]);toast("Te curaste.");
 }
 
 function updateHealthUI() {
@@ -849,7 +1017,7 @@ function damagePlayer(amount,sourcePos=null) {
   player.hp=Math.max(0,player.hp-amount);updateHealthUI();
   player.invuln=.25;
   $("damageFlash").style.opacity="1";setTimeout(()=>$("damageFlash").style.opacity="0",90);
-  audio.noise(.05,.08,500);navigator.vibrate?.([35,25,20]);
+  audio.noise(.05,.08,500);haptic([35,25,20]);
   if(sourcePos){
     const dir=new THREE.Vector3().subVectors(player.pos,sourcePos).normalize();
     player.velocity.addScaledVector(dir,2.2);
@@ -993,7 +1161,8 @@ function updateCamera(dt) {
     Math.sin(-player.cameraPitch)*8,
     Math.cos(player.cameraYaw)*8*Math.cos(player.cameraPitch)
   )));
-  camera.fov=lerp(camera.fov,player.aiming?48:58,.14);
+  const normalFov=settings.fov;
+  camera.fov=lerp(camera.fov,player.aiming?Math.max(42,normalFov-10):normalFov,.14);
   camera.updateProjectionMatrix();
 
   $("crosshair").classList.toggle("hidden",!player.aiming);
@@ -1036,7 +1205,7 @@ function interact() {
       item.battery=true;inventory.battery=1;toast("Batería de emergencia recuperada.");
       if(currentMission===2)setMission(3);
     }
-    updateInventoryUI();audio.pulse(520,.08,.03,"sine");navigator.vibrate?.(20);
+    updateInventoryUI();audio.pulse(520,.08,.03,"sine");haptic(20);saveProgress(false);
     if(currentMission===0 && inventory.cloth>=1 && inventory.alcohol>=1){
       setMission(1);toast("Tienes material suficiente para un botiquín.");
     }
@@ -1051,7 +1220,7 @@ function interact() {
   if(item.kind==="mission" && item.id==="radio"){
     if(currentMission===3 && inventory.battery){
       item.used=true;item.light.intensity=2.8;inventory.battery=0;
-      setMission(4);audio.pulse(230,.18,.05,"sine");audio.pulse(460,.08,.02,"square");
+      setMission(4);audio.pulse(230,.18,.05,"sine");audio.pulse(460,.08,.02,"square");saveProgress(false);
     }else if(currentMission<3){
       toast("La radio no tiene energía.");
     }
@@ -1071,7 +1240,7 @@ function performDodge() {
     dir.addScaledVector(f,input.forward).addScaledVector(r,input.right).normalize();
   }else dir.copy(f);
   player.dodging=true;player.dodgeTime=.36;player.dodgeDir.copy(dir);player.invuln=.28;
-  audio.noise(.035,.025,600);navigator.vibrate?.(18);
+  audio.noise(.035,.025,600);haptic(18);
 }
 
 function setAim(v) {
@@ -1083,7 +1252,7 @@ function meleeAttack() {
   player.attackCooldown=.62;
   emitNoise(8);
   audio.noise(.055,.065,700);
-  navigator.vibrate?.(25);
+  haptic(25);
   let best=null,bestD=2.25;
   const f=new THREE.Vector3(Math.sin(player.yaw),0,Math.cos(player.yaw));
   for(const e of ENEMIES){
@@ -1106,7 +1275,7 @@ function rangedAttack() {
   if(player.attackCooldown>0||player.ammo<=0)return;
   player.attackCooldown=.25;
   player.ammo--;updateInventoryUI();emitNoise(18);
-  audio.noise(.08,.12,1200);audio.pulse(105,.05,.03,"sawtooth");navigator.vibrate?.(30);
+  audio.noise(.08,.12,1200);audio.pulse(105,.05,.03,"sawtooth");haptic(30);
 
   const center=new THREE.Vector2(0,0);
   raycaster.setFromCamera(center,camera);
@@ -1119,7 +1288,8 @@ function rangedAttack() {
     if(d>45)continue;
     const dir=to.clone().sub(camera.position).normalize();
     const dot=dir.dot(raycaster.ray.direction);
-    if(dot>.987 && d<targetDist && lineOfSight(camera.position,to)){target=e;targetDist=d}
+    const threshold=settings.aimAssist?(isMobile?.972:.982):.990;
+    if(dot>threshold && d<targetDist && lineOfSight(camera.position,to)){target=e;targetDist=d}
   }
   if(target)damageEnemy(target,48,camera.position);
 
@@ -1361,23 +1531,47 @@ function endCinematic() {
 function setupControls() {
   const keys={};
 
+  const bindingActionForCode=code=>{
+    for(const [action,key] of Object.entries(settings.bindings))if(key===code)return action;
+    return null;
+  };
+
   addEventListener("keydown",e=>{
+    if(pendingBinding){
+      e.preventDefault();
+      settings.bindings[pendingBinding]=e.code;
+      pendingBinding=null;
+      writeSettings();
+      refreshBindingUI();
+      $("bindingHint").textContent="Control reasignado.";
+      return;
+    }
+
+    if(e.code==="Escape"){
+      e.preventDefault();
+      if(!$("settingsPanel").classList.contains("hidden")){ closeSettingsPanel(); return; }
+      if(!$("inventoryPanel").classList.contains("hidden")){ closeInventory(); return; }
+      togglePauseMenu();
+      return;
+    }
+
     keys[e.code]=true;
-    if(e.code==="KeyC")player.crouched=!player.crouched;
-    if(e.code==="Space"){e.preventDefault();performDodge();}
-    if(e.code==="KeyE")interact();
-    if(e.code==="KeyI")openInventory();
-    if(e.code==="KeyH")useMedkit();
-    if(e.code==="KeyR")reloadWeapon();
+    const action=bindingActionForCode(e.code);
+    if(action==="crouch")player.crouched=!player.crouched;
+    if(action==="dodge"){e.preventDefault();performDodge();}
+    if(action==="interact")interact();
+    if(action==="inventory"){e.preventDefault();openInventory();}
+    if(action==="heal")useMedkit();
+    if(action==="reload")reloadWeapon();
   });
+
   addEventListener("keyup",e=>keys[e.code]=false);
 
-  function updateKeyboard(){
-    input.forward=(keys.KeyW?1:0)-(keys.KeyS?1:0);
-    input.right=(keys.KeyD?1:0)-(keys.KeyA?1:0);
-    input.sprint=!!(keys.ShiftLeft||keys.ShiftRight);
-  }
-  input.updateKeyboard=updateKeyboard;
+  input.updateKeyboard=()=>{
+    input.forward=(keys[settings.bindings.forward]?1:0)-(keys[settings.bindings.back]?1:0);
+    input.right=(keys[settings.bindings.right]?1:0)-(keys[settings.bindings.left]?1:0);
+    input.sprint=!!keys[settings.bindings.sprint];
+  };
 
   renderer.domElement.addEventListener("mousedown",e=>{
     if(!gameRunning||paused)return;
@@ -1386,22 +1580,30 @@ function setupControls() {
   });
   addEventListener("mouseup",e=>{if(e.button===2)setAim(false)});
   addEventListener("contextmenu",e=>e.preventDefault());
+  addEventListener("wheel",e=>{
+    if(!gameRunning||paused)return;
+    if(e.deltaY>0)reloadWeapon();
+  },{passive:true});
+
   addEventListener("mousemove",e=>{
     if(document.pointerLockElement!==renderer.domElement||paused)return;
-    player.cameraYaw-=e.movementX*.0025;
-    player.cameraPitch=clamp(player.cameraPitch-e.movementY*.0019,-.62,.48);
+    const sens=.0025*settings.sensitivity;
+    player.cameraYaw-=e.movementX*sens;
+    const inv=settings.invertY?-1:1;
+    player.cameraPitch=clamp(player.cameraPitch-e.movementY*.0019*settings.sensitivity*inv,-.62,.48);
   });
 
   document.addEventListener("pointerlockchange",()=>{
     if(!isMobile && gameRunning && !paused && !cinematicRunning && document.pointerLockElement!==renderer.domElement){
-      paused=true;toast("Pausa. Toca la pantalla para continuar.");
+      paused=true;
+      $("pauseMenu").classList.remove("hidden");
     }else if(document.pointerLockElement===renderer.domElement){
-      paused=false;
+      if($("pauseMenu").classList.contains("hidden")&&$("settingsPanel").classList.contains("hidden"))paused=false;
     }
   });
+
   renderer.domElement.addEventListener("click",()=>{
-    if(!isMobile&&gameRunning&&paused&&!cinematicRunning&&!$("inventoryPanel").classList.contains("hidden"))return;
-    if(!isMobile&&gameRunning&&document.pointerLockElement!==renderer.domElement&&!cinematicRunning){
+    if(!isMobile&&gameRunning&&paused&&!cinematicRunning&&$("pauseMenu").classList.contains("hidden")&&$("settingsPanel").classList.contains("hidden")){
       requestLock();
     }
   });
@@ -1431,7 +1633,9 @@ function setupControls() {
     e.preventDefault();
     const t=[...e.changedTouches].find(v=>v.identifier===lookId);if(!t)return;
     const dx=t.clientX-lastLook.x,dy=t.clientY-lastLook.y;lastLook={x:t.clientX,y:t.clientY};
-    player.cameraYaw-=dx*.0044;player.cameraPitch=clamp(player.cameraPitch-dy*.0036,-.62,.48);
+    const sens=.0044*settings.sensitivity,inv=settings.invertY?-1:1;
+    player.cameraYaw-=dx*sens;
+    player.cameraPitch=clamp(player.cameraPitch-dy*.0036*settings.sensitivity*inv,-.62,.48);
   },{passive:false});
 
   $("btnAttack").addEventListener("touchstart",e=>{e.preventDefault();attack()},{passive:false});
@@ -1441,48 +1645,177 @@ function setupControls() {
   $("btnInteract").addEventListener("touchstart",e=>{e.preventDefault();interact()},{passive:false});
   $("btnCrouch").addEventListener("touchstart",e=>{e.preventDefault();player.crouched=!player.crouched},{passive:false});
   $("btnInventory").addEventListener("touchstart",e=>{e.preventDefault();openInventory()},{passive:false});
+  $("btnReload").addEventListener("touchstart",e=>{e.preventDefault();reloadWeapon()},{passive:false});
+  $("btnHeal").addEventListener("touchstart",e=>{e.preventDefault();useMedkit()},{passive:false});
 }
 
+function updateGamepad(dt){
+  const gp=navigator.getGamepads?.()[0];
+  if(!gp||paused||!gameRunning)return;
+
+  const dz=v=>Math.abs(v)<.16?0:v;
+  const lx=dz(gp.axes[0]||0),ly=dz(gp.axes[1]||0);
+  const rx=dz(gp.axes[2]||0),ry=dz(gp.axes[3]||0);
+
+  if(Math.abs(lx)+Math.abs(ly)>.05){
+    input.right=lx;input.forward=-ly;
+    input.sprint=!!gp.buttons[10]?.pressed || Math.hypot(lx,ly)>.92;
+  }
+
+  const sens=1.9*settings.sensitivity*dt;
+  player.cameraYaw-=rx*sens;
+  player.cameraPitch=clamp(player.cameraPitch-ry*sens*(settings.invertY?-1:1),-.62,.48);
+
+  const pressed=i=>!!gp.buttons[i]?.pressed;
+  const edge=i=>pressed(i)&&!gamepadPrev[i];
+
+  setAim(pressed(6));
+  if(edge(7))attack();
+  if(edge(0))performDodge();
+  if(edge(1))player.crouched=!player.crouched;
+  if(edge(2))interact();
+  if(edge(3))openInventory();
+  if(edge(4))useMedkit();
+  if(edge(5))reloadWeapon();
+
+  gamepadPrev=gp.buttons.map(b=>b.pressed);
+}
+
+function keyLabel(code){
+  return code.replace(/^Key/,"").replace(/^Digit/,"").replace("Left","").replace("Right","").replace("Control","CTRL").replace("Shift","SHIFT").replace("Space","SPACE").toUpperCase();
+}
+function refreshBindingUI(){
+  document.querySelectorAll(".binding").forEach(btn=>{
+    const action=btn.dataset.action;
+    btn.querySelector("b").textContent=keyLabel(settings.bindings[action]||"");
+  });
+}
+function populateSettings(){
+  $("settingQuality").value=settings.quality;
+  $("settingFps").value=String(settings.fpsCap);
+  $("settingFov").value=String(settings.fov);
+  $("settingDraw").value=String(Math.round(settings.drawDistance*100));
+  $("settingSensitivity").value=String(Math.round(settings.sensitivity*100));
+  $("settingInvertY").checked=settings.invertY;
+  $("settingAimAssist").checked=settings.aimAssist;
+  $("settingAutoCamera").checked=settings.autoCamera;
+  $("settingHaptics").checked=settings.haptics;
+  $("settingTouchScale").value=String(Math.round(settings.touchScale*100));
+  $("fovValue").textContent=settings.fov;
+  $("drawValue").textContent=Math.round(settings.drawDistance*100);
+  $("sensValue").textContent=Math.round(settings.sensitivity*100);
+  $("touchValue").textContent=Math.round(settings.touchScale*100);
+  refreshBindingUI();
+}
+function openSettingsPanel(){
+  paused=true;
+  populateSettings();
+  $("settingsPanel").classList.remove("hidden");
+  $("pauseMenu").classList.add("hidden");
+  if(document.pointerLockElement)document.exitPointerLock();
+}
+function closeSettingsPanel(){
+  $("settingsPanel").classList.add("hidden");
+  if(gameRunning){
+    paused=false;
+    if(!isMobile)requestLock();
+  }
+}
+function togglePauseMenu(force){
+  if(!gameRunning)return;
+  const shouldOpen=force!==undefined?force:$("pauseMenu").classList.contains("hidden");
+  $("pauseMenu").classList.toggle("hidden",!shouldOpen);
+  paused=shouldOpen;
+  if(shouldOpen&&document.pointerLockElement)document.exitPointerLock();
+  if(!shouldOpen&&!isMobile)requestLock();
+}
 function setupUI() {
   document.querySelectorAll(".quality").forEach(btn=>{
     btn.onclick=()=>{
-      quality=btn.dataset.quality;
+      settings.quality=btn.dataset.quality==="balanced"?"medium":btn.dataset.quality==="battery"?"low":btn.dataset.quality;
+      quality=settings.quality;
       document.querySelectorAll(".quality").forEach(b=>b.classList.toggle("active",b===btn));
-      applyQuality();
+      writeSettings();applyQuality();
     };
   });
 
   $("startGame").onclick=()=>{
     player.name=$("playerName").value.trim()||"Alex";
     audio.start();
+    localStorage.removeItem("santaAuroraSave");
     $("mainMenu").classList.add("hidden");
     startCinematic();
   };
+  $("continueGame").onclick=resumeSavedGame;
+  $("openSettings").onclick=openSettingsPanel;
+  $("pauseSettings").onclick=openSettingsPanel;
+  $("closeSettings").onclick=closeSettingsPanel;
+  $("resumeGame").onclick=()=>togglePauseMenu(false);
+  $("saveGameButton").onclick=()=>saveProgress(true);
+  $("returnMenu").onclick=()=>{saveProgress(false);location.reload();};
+
   $("skipCinematic").onclick=endCinematic;
   $("closeInventory").onclick=closeInventory;
   $("craftMedkit").onclick=craftMedkit;
   $("craftBlade").onclick=craftBlade;
   $("closeDocument").onclick=hideDocument;
-  $("replayButton").onclick=()=>location.reload();
+  $("replayButton").onclick=()=>{localStorage.removeItem("santaAuroraSave");location.reload();};
 
-  $("healthText").parentElement?.addEventListener?.("click",useMedkit);
+  const bindSetting=(id,key,transform=v=>v)=>{
+    const el=$(id);
+    el.addEventListener("input",()=>{
+      settings[key]=transform(el.type==="checkbox"?el.checked:el.value);
+      quality=settings.quality;
+      writeSettings();populateSettings();applyQuality();
+    });
+  };
+  bindSetting("settingQuality","quality",String);
+  bindSetting("settingFps","fpsCap",Number);
+  bindSetting("settingFov","fov",Number);
+  bindSetting("settingDraw","drawDistance",v=>Number(v)/100);
+  bindSetting("settingSensitivity","sensitivity",v=>Number(v)/100);
+  bindSetting("settingInvertY","invertY",Boolean);
+  bindSetting("settingAimAssist","aimAssist",Boolean);
+  bindSetting("settingAutoCamera","autoCamera",Boolean);
+  bindSetting("settingHaptics","haptics",Boolean);
+  bindSetting("settingTouchScale","touchScale",v=>Number(v)/100);
+
+  document.querySelectorAll(".binding").forEach(btn=>{
+    btn.onclick=()=>{
+      pendingBinding=btn.dataset.action;
+      $("bindingHint").textContent="Presiona una tecla para "+btn.querySelector("span").textContent.toLowerCase()+"…";
+    };
+  });
+
+  populateSettings();
+  updateContinueButton();
 }
 
 function applyQuality() {
-  const q = quality==="auto" ? (isMobile?"balanced":"high") : quality;
-  if(q==="high"){
-    renderer.shadowMap.enabled=true;bloom.strength=.12;scene.fog.density=.0075;
-    dynamicPixelRatio=Math.min(devicePixelRatio,isMobile?1.35:1.8);
-  }else if(q==="balanced"){
-    renderer.shadowMap.enabled=true;bloom.strength=.07;
-    dynamicPixelRatio=Math.min(devicePixelRatio,isMobile?1.0:1.35);
-  }else if(q==="battery"){
-    renderer.shadowMap.enabled=false;bloom.strength=0;
-    dynamicPixelRatio=Math.min(devicePixelRatio,.78);
-  }
+  quality=settings.quality;
+  const auto=isMobile?"medium":"high";
+  const q=quality==="auto"?auto:quality;
+
+  const profile={
+    low:{pixel:isMobile?.68:.82,shadows:false,bloom:0,particles:.35,far:120},
+    medium:{pixel:isMobile?.90:1.12,shadows:true,bloom:.045,particles:.60,far:170},
+    high:{pixel:isMobile?1.12:1.45,shadows:true,bloom:.085,particles:.82,far:220},
+    ultra:{pixel:isMobile?1.28:Math.min(devicePixelRatio,1.85),shadows:true,bloom:.12,particles:1,far:280}
+  }[q];
+
+  renderer.shadowMap.enabled=profile.shadows;
+  bloom.strength=profile.bloom;
+  dynamicPixelRatio=Math.min(devicePixelRatio,profile.pixel);
+  camera.far=profile.far*settings.drawDistance;
+  camera.updateProjectionMatrix();
   renderer.setPixelRatio(dynamicPixelRatio);
   renderer.setSize(innerWidth,innerHeight,false);
   composer.setSize(innerWidth,innerHeight);
+
+  if(dustPoints)dustPoints.visible=profile.particles>.25;
+  if(rainPoints)rainPoints.visible=profile.particles>.25;
+  document.documentElement.style.setProperty("--touch-scale",String(settings.touchScale));
+  if(isMobile)$("touchUI").style.transform="scale("+settings.touchScale+")";
 }
 
 function dynamicResolution(dt) {
@@ -1490,10 +1823,13 @@ function dynamicResolution(dt) {
   if(fpsAccumulator<2)return;
   const fps=fpsFrames/fpsAccumulator;
   fpsAccumulator=0;fpsFrames=0;
-  if(quality!=="auto")return;
-  const min=.72,max=isMobile?1.25:1.65;
-  if(fps<42 && dynamicPixelRatio>min)dynamicPixelRatio=Math.max(min,dynamicPixelRatio-.1);
-  if(fps>57 && dynamicPixelRatio<max)dynamicPixelRatio=Math.min(max,dynamicPixelRatio+.05);
+  if(settings.quality!=="auto")return;
+
+  const target=settings.fpsCap;
+  const min=isMobile?.62:.72,max=isMobile?1.18:1.55;
+  if(fps<target*.78 && dynamicPixelRatio>min)dynamicPixelRatio=Math.max(min,dynamicPixelRatio-.08);
+  if(fps>target*.95 && dynamicPixelRatio<max)dynamicPixelRatio=Math.min(max,dynamicPixelRatio+.04);
+
   renderer.setPixelRatio(dynamicPixelRatio);
   renderer.setSize(innerWidth,innerHeight,false);
   composer.setSize(innerWidth,innerHeight);
@@ -1508,6 +1844,8 @@ function init() {
   setupUI();
   updateInventoryUI();
   applyQuality();
+  updateContinueButton();
+  populateSettings();
 
   bootProgress(.78,"Preparando controles táctiles y audio...");
   setTimeout(()=>bootProgress(.94,"Cargando capítulo..."),180);
@@ -1525,8 +1863,14 @@ function init() {
 
 function gameLoop(now) {
   requestAnimationFrame(gameLoop);
+
+  const interval=1000/Math.max(30,settings.fpsCap||60);
+  if(now-lastRenderedAt<interval-1)return;
+  lastRenderedAt=now;
+
   const dt=Math.min(.04,(now-lastTime)/1000);lastTime=now;
   if(input.updateKeyboard)input.updateKeyboard();
+  updateGamepad(dt);
 
   if(!paused || cinematicRunning){
     updatePlayer(dt);
@@ -1535,8 +1879,15 @@ function gameLoop(now) {
     updateWorld(dt);
     updateMission(dt);
     updateInteractionPrompt();
+    updateZone();
+    updateContextButtons();
     dynamicResolution(dt);
     if(player.noise>0)player.noise=Math.max(0,player.noise-dt*8);
+
+    lodClock+=dt;
+    if(lodClock>.45){lodClock=0;updateLOD();}
+    autosaveClock+=dt;
+    if(gameRunning&&autosaveClock>12){autosaveClock=0;saveProgress(false);}
   }
 
   composer.render();
@@ -1549,3 +1900,6 @@ addEventListener("resize",()=>{
 
 init();
 requestAnimationFrame(gameLoop);
+
+
+addEventListener("beforeunload",()=>{ if(gameRunning) saveProgress(false); });
