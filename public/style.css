@@ -113,3 +113,47 @@ repeating-linear-gradient(0deg,rgba(255,255,255,.01) 0 1px,transparent 1px 4px);
   .desktop-help{display:none!important}
 }
 @media(min-width:861px){.touch-ui{display:none!important}}
+
+
+.secondary-btn{
+  width:100%;margin-top:7px;padding:12px 14px;border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.025);color:#dce7e3;display:flex;justify-content:space-between;align-items:center;
+  font-size:9px;font-weight:800;letter-spacing:.1em
+}
+.secondary-btn:hover{background:rgba(255,255,255,.055)}
+.pause-menu,.settings-panel{
+  position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(2,6,6,.72);backdrop-filter:blur(10px);pointer-events:auto
+}
+.pause-card{width:min(380px,90vw);padding:22px;background:rgba(6,14,14,.96);border:1px solid rgba(255,255,255,.09)}
+.pause-card>span{font-size:8px;letter-spacing:.18em;color:#74857f}.pause-card h2{margin:7px 0 18px;font-size:30px}
+.pause-card button{width:100%;margin:6px 0;padding:12px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025);color:#fff;text-align:left}
+.pause-card button:hover{background:rgba(183,217,154,.06);border-color:rgba(183,217,154,.18)}
+
+.settings-card{width:min(980px,94vw);max-height:90vh;overflow:auto;padding:18px;background:rgba(7,15,15,.97);border:1px solid rgba(255,255,255,.09)}
+.settings-card header{display:flex;justify-content:space-between;align-items:center;padding-bottom:13px;border-bottom:1px solid var(--line)}
+.settings-card header span{display:block;font-size:7px;letter-spacing:.18em;color:#71817b}
+.settings-card header b{display:block;font-size:18px;margin-top:2px}
+.settings-card header button{border:0;background:none;color:#fff;font-size:28px}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding-top:16px}
+.settings-grid section{padding:14px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.018)}
+.settings-grid h3{margin:0 0 14px;font-size:8px;letter-spacing:.16em;color:#778781}
+.settings-grid label{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:12px 0;font-size:9px;color:#b9c5c1}
+.settings-grid label input[type=range]{grid-column:1/-1;width:100%;accent-color:#8fb486}
+.settings-grid label select{min-width:150px;padding:8px;background:#0b1514;color:#fff;border:1px solid rgba(255,255,255,.09)}
+.toggle-line{grid-template-columns:1fr auto!important}
+.toggle-line input{accent-color:#8fb486}
+.bindings-section{grid-column:1/-1}
+.binding-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.binding{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.025);color:#fff}
+.binding span{font-size:8px;color:#93a29d}.binding b{font-size:8px;color:#dbe7e3}
+#bindingHint{display:block;margin-top:10px;color:#6f7f7a;font-size:8px}
+
+.touch-btn.reload{right:178px;bottom:94px;width:55px;height:55px}
+.touch-btn.heal{right:178px;bottom:154px;width:55px;height:55px;background:rgba(82,112,76,.58)}
+
+@media(max-width:860px){
+  .settings-grid{grid-template-columns:1fr}
+  .bindings-section{grid-column:auto}
+  .binding-grid{grid-template-columns:1fr 1fr}
+  .settings-card{max-height:94vh}
+}
