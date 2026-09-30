@@ -1,0 +1,10 @@
+{
+  "name": "Santa Aurora: Afterlight",
+  "short_name": "Santa Aurora",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#06100f",
+  "theme_color": "#06100f",
+  "description": "Prototipo 3D original de supervivencia narrativa para PC y móviles."
+}
