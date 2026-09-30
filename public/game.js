@@ -106,6 +106,8 @@ const player = {
   bladeBoost: 0,
   noise: 0,
   grassHidden: false,
+  jumpY: 0,
+  jumpVel: 0,
   alive: true
 };
 
@@ -136,10 +138,11 @@ const DEFAULT_SETTINGS = {
     right: "KeyD",
     sprint: "ShiftLeft",
     crouch: "KeyC",
-    dodge: "Space",
+    jump: "Space",
+    dodge: "AltLeft",
     interact: "KeyE",
     inventory: "Tab",
-    heal: "KeyH",
+    heal: "KeyQ",
     reload: "KeyR"
   }
 };
@@ -481,6 +484,8 @@ let exitGate=null;
 let waterMesh=null;
 let rainPoints=null;
 let dustPoints=null;
+let worldSun=null;
+let worldHemi=null;
 
 function createWater(x,z,w,d) {
   const geo=new THREE.PlaneGeometry(w,d,48,48);
@@ -824,12 +829,14 @@ function createAudio() {
 const audio=createAudio();
 
 function createLighting() {
-  scene.add(new THREE.HemisphereLight(0xc4d5cf,0x35433b,1.7));
+  worldHemi=new THREE.HemisphereLight(0xc4d5cf,0x35433b,1.7);
+  scene.add(worldHemi);
   const sun=new THREE.DirectionalLight(0xffe7cb,2.7);
   sun.position.set(-26,34,18);sun.castShadow=true;
   sun.shadow.mapSize.set(isMobile?1024:2048,isMobile?1024:2048);
   sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;sun.shadow.camera.far=100;
   scene.add(sun);
+  worldSun=sun;
   const cool=new THREE.DirectionalLight(0x8fbad0,.45);cool.position.set(20,12,-20);scene.add(cool);
 }
 
@@ -1038,10 +1045,22 @@ function isInsideGrass(pos) {
 }
 
 function collidesAt(x,z) {
+  const feet=player.jumpY;
   for(const c of COLLIDERS){
-    if(x>c.minX&&x<c.maxX&&z>c.minZ&&z<c.maxZ)return true;
+    if(x>c.minX&&x<c.maxX&&z>c.minZ&&z<c.maxZ){
+      if(feet>Math.max(.65,(c.maxY||2)-.55)) continue;
+      return true;
+    }
   }
   return false;
+}
+function jumpPlayer(){
+  if(paused||!gameRunning||player.crouched)return;
+  if(player.jumpY<=.03){
+    player.jumpVel=5.8;
+    haptic(12);
+    audio.noise(.018,.018,650);
+  }
 }
 
 function updatePlayer(dt) {
@@ -1093,8 +1112,12 @@ function updatePlayer(dt) {
   }
 
   player.group.position.lerp(player.pos,.42);
+  player.jumpVel-=12.5*dt;
+  player.jumpY+=player.jumpVel*dt;
+  if(player.jumpY<0){player.jumpY=0;player.jumpVel=0;}
   const crouchY=player.crouched?-.36:0;
-  player.group.position.y=lerp(player.group.position.y,crouchY,.18);
+  const bodyY=crouchY+player.jumpY;
+  player.group.position.y=lerp(player.group.position.y,bodyY,.22);
 
   const anim=player.group.userData;
   elapsed+=dt;
@@ -1135,7 +1158,7 @@ function updateCamera(dt) {
   const aimBlend=player.aiming?1:0;
   const distance=lerp(4.8,2.25,aimBlend);
   const shoulder=lerp(.55,.82,aimBlend);
-  const height=player.crouched?1.35:1.72;
+  const height=(player.crouched?1.35:1.72)+player.jumpY;
 
   const target=player.pos.clone().add(new THREE.Vector3(0,height,0));
   const back=new THREE.Vector3(
@@ -1182,10 +1205,12 @@ function updateInteractionPrompt() {
   const item=nearestInteractive();
   if(item){
     $("interactionPrompt").classList.remove("hidden");
+    if(isMobile)$("btnInteract").classList.remove("hidden");
     $("interactionText").textContent=item.label||"Interactuar";
     $("interactionKey").textContent=isMobile?"USAR":"E";
   }else{
     $("interactionPrompt").classList.add("hidden");
+    if(isMobile)$("btnInteract").classList.add("hidden");
   }
 }
 
@@ -1455,6 +1480,15 @@ function updateWorld(dt) {
     }
     dustPoints.geometry.attributes.position.needsUpdate=true;
   }
+  if(worldSun&&worldHemi){
+    const phase=clamp(currentMission/Math.max(1,MISSION_DATA.length-1),0,1);
+    worldSun.intensity=lerp(2.7,1.25,phase);
+    worldSun.color.setHSL(lerp(.105,.065,phase),lerp(.35,.48,phase),lerp(.86,.64,phase));
+    worldSun.position.x=lerp(-26,-8,phase);
+    worldSun.position.y=lerp(34,16,phase);
+    worldHemi.intensity=lerp(1.7,.78,phase);
+    renderer.toneMappingExposure=lerp(1.0,.82,phase);
+  }
   if(rainPoints){
     const target=currentMission>=2?.42:0;
     rainPoints.material.opacity=THREE.MathUtils.damp(rainPoints.material.opacity,target,2,dt);
@@ -1558,6 +1592,7 @@ function setupControls() {
     keys[e.code]=true;
     const action=bindingActionForCode(e.code);
     if(action==="crouch")player.crouched=!player.crouched;
+    if(action==="jump"){e.preventDefault();jumpPlayer();}
     if(action==="dodge"){e.preventDefault();performDodge();}
     if(action==="interact")interact();
     if(action==="inventory"){e.preventDefault();openInventory();}
@@ -1642,6 +1677,7 @@ function setupControls() {
   $("btnAim").addEventListener("touchstart",e=>{e.preventDefault();setAim(true)},{passive:false});
   $("btnAim").addEventListener("touchend",e=>{e.preventDefault();setAim(false)},{passive:false});
   $("btnDodge").addEventListener("touchstart",e=>{e.preventDefault();performDodge()},{passive:false});
+  $("btnJump").addEventListener("touchstart",e=>{e.preventDefault();jumpPlayer()},{passive:false});
   $("btnInteract").addEventListener("touchstart",e=>{e.preventDefault();interact()},{passive:false});
   $("btnCrouch").addEventListener("touchstart",e=>{e.preventDefault();player.crouched=!player.crouched},{passive:false});
   $("btnInventory").addEventListener("touchstart",e=>{e.preventDefault();openInventory()},{passive:false});
@@ -1671,12 +1707,13 @@ function updateGamepad(dt){
 
   setAim(pressed(6));
   if(edge(7))attack();
-  if(edge(0))performDodge();
-  if(edge(1))player.crouched=!player.crouched;
+  if(edge(0))jumpPlayer();
+  if(edge(1))performDodge();
   if(edge(2))interact();
   if(edge(3))openInventory();
   if(edge(4))useMedkit();
   if(edge(5))reloadWeapon();
+  if(edge(10))player.crouched=!player.crouched;
 
   gamepadPrev=gp.buttons.map(b=>b.pressed);
 }
