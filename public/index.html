@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Santa Aurora: Afterlight</title>
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -188,7 +189,7 @@
   <span><b>RMB</b> Apuntar</span>
   <span><b>LMB</b> Atacar</span>
   <span><b>E</b> Interactuar</span>
-  <span><b>I</b> Inventario</span>
+  <span><b>Tab</b> Inventario</span>
 </div>
 
 <div id="touchUI" class="touch-ui hidden">
@@ -199,6 +200,7 @@
   <button id="btnAttack" class="touch-btn attack"><span>ATACAR</span></button>
   <button id="btnAim" class="touch-btn aim"><span>APUNTAR</span></button>
   <button id="btnDodge" class="touch-btn dodge"><span>ESQUIVAR</span></button>
+  <button id="btnJump" class="touch-btn jump"><span>SALTAR</span></button>
   <button id="btnInteract" class="touch-btn interact"><span>USAR</span></button>
   <button id="btnCrouch" class="touch-btn crouch"><span>SIGILO</span></button>
   <button id="btnInventory" class="touch-btn inventory"><span>MOCHILA</span></button>
@@ -275,10 +277,11 @@
           <button class="binding" data-action="right"><span>Derecha</span><b>D</b></button>
           <button class="binding" data-action="sprint"><span>Sprint</span><b>SHIFT</b></button>
           <button class="binding" data-action="crouch"><span>Agacharse</span><b>C</b></button>
-          <button class="binding" data-action="dodge"><span>Esquivar</span><b>SPACE</b></button>
+          <button class="binding" data-action="jump"><span>Saltar</span><b>SPACE</b></button>
+          <button class="binding" data-action="dodge"><span>Esquivar</span><b>ALT</b></button>
           <button class="binding" data-action="interact"><span>Interactuar</span><b>E</b></button>
           <button class="binding" data-action="inventory"><span>Inventario</span><b>TAB</b></button>
-          <button class="binding" data-action="heal"><span>Curarse</span><b>H</b></button>
+          <button class="binding" data-action="heal"><span>Objeto rápido</span><b>Q</b></button>
           <button class="binding" data-action="reload"><span>Recargar</span><b>R</b></button>
         </div>
         <small id="bindingHint">Toca un control para reasignarlo.</small>
@@ -296,5 +299,10 @@
 }
 </script>
 <script type="module" src="/game.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+}
+</script>
 </body>
 </html>
