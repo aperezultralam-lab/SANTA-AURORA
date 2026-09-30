@@ -157,3 +157,5 @@ repeating-linear-gradient(0deg,rgba(255,255,255,.01) 0 1px,transparent 1px 4px);
   .binding-grid{grid-template-columns:1fr 1fr}
   .settings-card{max-height:94vh}
 }
+
+.touch-btn.jump{right:110px;bottom:165px;width:52px;height:52px}
