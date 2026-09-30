@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07100f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Santa Aurora: Afterlight</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="boot" class="boot">
+  <div class="boot-logo">
+    <span>UH / ORIGINAL SURVIVAL SERIES</span>
+    <b>SANTA AURORA</b>
+    <small>AFTERLIGHT</small>
+  </div>
+  <div class="boot-progress"><i id="bootBar"></i></div>
+  <div id="bootText">Preparando Santa Aurora...</div>
+</div>
+
+<div id="cinematic" class="cinematic hidden">
+  <div class="letterbox top"></div>
+  <div class="letterbox bottom"></div>
+  <div class="cinematic-title">
+    <span>CAPÍTULO I</span>
+    <b>LAS CALLES RECUERDAN</b>
+    <small>SANTA AURORA · 11 MESES DESPUÉS</small>
+  </div>
+  <div id="subtitle" class="subtitle"></div>
+  <button id="skipCinematic">SALTAR</button>
+</div>
+
+<div id="mainMenu" class="menu hidden">
+  <div class="menu-vignette"></div>
+  <div class="menu-content">
+    <div class="menu-brand">
+      <span>ORIGINAL MOBILE SURVIVAL EXPERIENCE</span>
+      <h1>SANTA<br><b>AURORA</b></h1>
+      <h2>AFTERLIGHT</h2>
+    </div>
+    <p class="menu-copy">Una ciudad herida. Recursos escasos. Cada ruido puede atraer algo peor.</p>
+
+    <div class="menu-card">
+      <div class="save-chip">
+        <span>VERTICAL SLICE</span>
+        <b>10–15 MIN</b>
+      </div>
+      <label>Nombre del superviviente</label>
+      <input id="playerName" maxlength="18" placeholder="Alex" value="Alex">
+      <div class="quality-row">
+        <button class="quality active" data-quality="auto">AUTO</button>
+        <button class="quality" data-quality="high">ALTO</button>
+        <button class="quality" data-quality="balanced">BALANCE</button>
+        <button class="quality" data-quality="battery">BATERÍA</button>
+      </div>
+      <button id="startGame" class="start-btn"><span>INICIAR CAPÍTULO</span><b>→</b></button>
+    </div>
+
+    <div class="menu-footer">
+      <span>TERCERA PERSONA</span>
+      <span>SUPERVIVENCIA</span>
+      <span>SIGILO</span>
+      <span>COMBATE TÁCTICO</span>
+    </div>
+  </div>
+</div>
+
+<div id="hud" class="hud hidden">
+  <div class="top-left">
+    <div class="objective">
+      <span>OBJETIVO</span>
+      <b id="objectiveText">Encuentra un camino hacia la estación.</b>
+      <small id="objectiveHint">Explora la avenida principal.</small>
+    </div>
+    <div id="storyToast" class="story-toast hidden"></div>
+  </div>
+
+  <div class="top-right">
+    <div class="resource-strip">
+      <div><span>MUNICIÓN</span><b id="ammo">8</b></div>
+      <div><span>BOTIQUÍN</span><b id="medkits">0</b></div>
+      <div><span>CUCHILLA</span><b id="blades">1</b></div>
+    </div>
+  </div>
+
+  <div id="awareness" class="awareness hidden">
+    <span>TE ESTÁN BUSCANDO</span>
+    <i><b id="awarenessFill"></b></i>
+  </div>
+
+  <div id="crosshair" class="crosshair hidden"><i></i><i></i><i></i><i></i><b></b></div>
+
+  <div class="bottom-left">
+    <div class="health-block">
+      <div class="health-meta"><span>ESTADO</span><b id="healthText">100</b></div>
+      <div class="healthbar"><i id="healthFill"></i></div>
+    </div>
+    <div class="stealth-state">
+      <span id="stance">DE PIE</span>
+      <b id="surfaceLabel">ASFALTO MOJADO</b>
+    </div>
+  </div>
+
+  <div class="bottom-right">
+    <div class="weapon-block">
+      <span id="weaponType">PISTOLA IMPROVISADA</span>
+      <b id="weaponAmmo">8 / 18</b>
+      <small id="weaponMode">SEMIAUTOMÁTICA</small>
+    </div>
+  </div>
+
+  <div id="interactionPrompt" class="interaction hidden">
+    <span id="interactionKey">E</span>
+    <b id="interactionText">Recoger recurso</b>
+  </div>
+
+  <div id="damageFlash"></div>
+  <div id="bloodVignette"></div>
+  <div id="noiseRing" class="noise-ring"></div>
+  <div id="missionComplete" class="mission-complete hidden">
+    <span>VERTICAL SLICE COMPLETADA</span>
+    <b>LA SEÑAL</b>
+    <p>Has recuperado una transmisión desde Santa Aurora. La historia continúa.</p>
+    <button id="replayButton">VOLVER A JUGAR</button>
+  </div>
+</div>
+
+<div id="inventoryPanel" class="inventory-panel hidden">
+  <div class="inventory-shell">
+    <header>
+      <div><span>MOCHILA</span><b id="inventoryTitle">INVENTARIO LIMITADO</b></div>
+      <button id="closeInventory">×</button>
+    </header>
+    <div class="inventory-grid">
+      <section>
+        <h3>RECURSOS</h3>
+        <div class="inv-list">
+          <div><span>TELA</span><b id="clothCount">0</b></div>
+          <div><span>ALCOHOL</span><b id="alcoholCount">0</b></div>
+          <div><span>METAL</span><b id="metalCount">0</b></div>
+          <div><span>COMPONENTES</span><b id="partsCount">0</b></div>
+        </div>
+      </section>
+      <section>
+        <h3>FABRICACIÓN</h3>
+        <button id="craftMedkit" class="craft-card">
+          <span>BOTIQUÍN</span>
+          <b>1 Tela + 1 Alcohol</b>
+          <small>Recupera 55 puntos de salud.</small>
+        </button>
+        <button id="craftBlade" class="craft-card">
+          <span>CUCHILLA REFORZADA</span>
+          <b>1 Metal + 1 Componentes</b>
+          <small>Aumenta daño cuerpo a cuerpo temporalmente.</small>
+        </button>
+      </section>
+      <section class="notes-section">
+        <h3>DOCUMENTOS</h3>
+        <div id="notesList" class="notes-list">
+          <p>Todavía no has encontrado documentos.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="documentModal" class="document-modal hidden">
+  <article>
+    <span id="documentType">DOCUMENTO ENCONTRADO</span>
+    <h2 id="documentTitle">Título</h2>
+    <p id="documentBody"></p>
+    <button id="closeDocument">CERRAR</button>
+  </article>
+</div>
+
+<div id="desktopHelp" class="desktop-help hidden">
+  <span><b>WASD</b> Mover</span>
+  <span><b>Mouse</b> Cámara</span>
+  <span><b>Shift</b> Correr</span>
+  <span><b>C</b> Agacharse</span>
+  <span><b>Espacio</b> Esquivar</span>
+  <span><b>RMB</b> Apuntar</span>
+  <span><b>LMB</b> Atacar</span>
+  <span><b>E</b> Interactuar</span>
+  <span><b>I</b> Inventario</span>
+</div>
+
+<div id="touchUI" class="touch-ui hidden">
+  <div id="moveStick" class="stick">
+    <div id="moveKnob"></div>
+  </div>
+  <div id="lookZone" class="look-zone"></div>
+  <button id="btnAttack" class="touch-btn attack"><span>ATACAR</span></button>
+  <button id="btnAim" class="touch-btn aim"><span>APUNTAR</span></button>
+  <button id="btnDodge" class="touch-btn dodge"><span>ESQUIVAR</span></button>
+  <button id="btnInteract" class="touch-btn interact"><span>USAR</span></button>
+  <button id="btnCrouch" class="touch-btn crouch"><span>SIGILO</span></button>
+  <button id="btnInventory" class="touch-btn inventory"><span>MOCHILA</span></button>
+</div>
+
+<script type="importmap">
+{
+  "imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="/game.js"></script>
+</body>
+</html>
