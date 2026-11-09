@@ -17,6 +17,14 @@ html=html.replace(['__','BOOTSTRAP','__'].join(''),BOOTSTRAP);
 html=html.replace('</head>','\n'+META+'</head>');
 html=html.replace(anchor,FORM+anchor);
 html=html.replace('</body>','\n'+SCRIPT+'\n</body>');
+// Cuando exista el Apps Script autorizado, añadir en Render la variable APPS_SCRIPT_URL.
+// Sin ella el botón sigue desactivado para impedir confirmaciones que no se registren.
+const appsScriptUrl=String(process.env.APPS_SCRIPT_URL||'').trim();
+if(appsScriptUrl){
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?.*)?$/.test(appsScriptUrl))
+    throw new Error('APPS_SCRIPT_URL debe ser una URL de Apps Script terminada en /exec');
+  html=html.replace('PEGA_AQUI_URL_APPS_SCRIPT',appsScriptUrl);
+}
 fs.mkdirSync(path.join(__dirname,'public'),{recursive:true});
 fs.writeFileSync(path.join(__dirname,'public','index.html'),html,'utf8');
 fs.copyFileSync(path.join(__dirname,'og-posada.jpg'),path.join(__dirname,'public','og-posada.jpg'));
